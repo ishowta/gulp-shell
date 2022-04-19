@@ -18,6 +18,7 @@ interface Options {
   ignoreErrors?: boolean
   errorMessage?: string
   templateData?: object
+  prefix?: string
 }
 
 const normalizeCommands = (commands: string | string[]): string[] => {
@@ -53,6 +54,7 @@ const normalizeOptions = (options: Options = {}): Required<Options> => {
     errorMessage:
       'Command `<%= command %>` failed with exit code <%= error.code %>',
     templateData: {},
+    prefix: '',
     ...options
   }
 }
@@ -73,8 +75,21 @@ const runCommand = (
     env: options.env,
     cwd: template(options.cwd)(context),
     shell: options.shell,
-    stdio: options.quiet ? 'ignore' : 'inherit'
+    stdio: options.quiet ? 'ignore' : options.prefix !== '' ? 'pipe' : 'inherit'
   })
+
+  if (options.prefix !== '') {
+    let stream = ''
+    child.stdout?.on('data', function(chunk: string) {
+      stream += chunk
+      const lines = stream.split('\n')
+      while (lines.length > 1) {
+        const line = lines.shift()
+        console.log(options.prefix, line)
+      }
+      stream = lines.shift() ?? ''
+    })
+  }
 
   return new Promise((resolve, reject) => {
     child.on('exit', code => {
